@@ -1,0 +1,149 @@
+body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+.app {
+    display: flex;
+}
+
+/* SIDEBAR */
+.sidebar {
+    width: 220px;
+    height: 100vh;
+    background: #111827;
+    padding: 20px;
+    border-right: 1px solid #1f2937;
+}
+
+.sidebar button {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+    background: #1f2937;
+    border: none;
+    color: #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.sidebar button:hover {
+    background: #374151;
+}
+
+/* MAIN */
+.main {
+    flex: 1;
+    padding: 25px;
+}
+
+/* CARD */
+.card {
+    background: #111827;
+    padding: 20px;
+    border-radius: 12px;
+    margin-top: 20px;
+    border: 1px solid #1f2937;
+}
+
+/* STATS */
+.stats {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.stat-box {
+    flex: 1;
+    background: #1f2937;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+/* DOUBTS */
+#doubtList {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.doubt {
+    background: #1f2937;
+    padding: 12px;
+    border-radius: 10px;
+    margin: 10px 0;
+}
+
+.answered {
+    background: #064e3b;
+}
+
+/* INPUT */
+input, select {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 8px;
+    border: 1px solid #1f2937;
+    background: #0f172a;
+    color: white;
+}
+
+/* BUTTON */
+button {
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: none;
+    background: #3b82f6;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #2563eb;
+}
+
+/* AI */
+.ai {
+    margin-top: 8px;
+    background: #1e293b;
+    padding: 6px;
+    border-radius: 6px;
+}
+
+/* TOAST */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #1f2937;
+    padding: 10px;
+    border-radius: 8px;
+    opacity: 0;
+    transition: 0.3s;
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+/* HIDDEN */
+.hidden {
+    display: none;
+}
+
+/* MOBILE */
+@media(max-width:768px){
+    .app {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        display: flex;
+        gap: 10px;
+    }
+}

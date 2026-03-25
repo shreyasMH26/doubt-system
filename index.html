@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EchoClass</title>
+
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <h2>🎓 EchoClass</h2>
+        <button onclick="showStudent()">👨‍🎓 Student</button>
+        <button onclick="showTeacher()">👩‍🏫 Teacher</button>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+
+        <div class="header">
+            <h2>Classroom Dashboard</h2>
+            <p>Anonymous • Safe • Smart</p>
+        </div>
+
+        <!-- LOGIN -->
+        <div id="loginPage" class="card">
+            <h3>Login</h3>
+            <input id="nameInput" placeholder="Enter your name">
+            <select id="roleSelect">
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+            </select>
+            <button onclick="login()">Enter</button>
+        </div>
+
+        <!-- STUDENT -->
+        <div id="studentPage" class="card hidden">
+            <h3>Submit Doubt</h3>
+            <input id="doubtInput" placeholder="Ask your doubt...">
+            <button onclick="submitDoubt()">Submit</button>
+        </div>
+
+        <!-- TEACHER -->
+        <div id="teacherPage" class="card hidden">
+
+            <div class="stats">
+                <div class="stat-box">
+                    <h4>Total</h4>
+                    <p id="count">0</p>
+                </div>
+
+                <div class="stat-box">
+                    <h4>Answered</h4>
+                    <p id="answeredCount">0</p>
+                </div>
+            </div>
+
+            <canvas id="chart" height="100"></canvas>
+
+            <h3>Live Doubts</h3>
+            <div id="doubtList"></div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
