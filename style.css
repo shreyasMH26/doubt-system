@@ -9,7 +9,6 @@ body {
     display: flex;
 }
 
-/* SIDEBAR */
 .sidebar {
     width: 220px;
     height: 100vh;
@@ -33,13 +32,11 @@ body {
     background: #374151;
 }
 
-/* MAIN */
 .main {
     flex: 1;
     padding: 25px;
 }
 
-/* CARD */
 .card {
     background: #111827;
     padding: 20px;
@@ -48,7 +45,6 @@ body {
     border: 1px solid #1f2937;
 }
 
-/* STATS */
 .stats {
     display: flex;
     gap: 15px;
@@ -63,7 +59,6 @@ body {
     text-align: center;
 }
 
-/* DOUBTS */
 #doubtList {
     max-height: 350px;
     overflow-y: auto;
@@ -80,7 +75,6 @@ body {
     background: #064e3b;
 }
 
-/* INPUT */
 input, select {
     width: 100%;
     padding: 12px;
@@ -91,7 +85,6 @@ input, select {
     color: white;
 }
 
-/* BUTTON */
 button {
     padding: 10px 15px;
     border-radius: 8px;
@@ -105,7 +98,6 @@ button:hover {
     background: #2563eb;
 }
 
-/* AI */
 .ai {
     margin-top: 8px;
     background: #1e293b;
@@ -113,7 +105,6 @@ button:hover {
     border-radius: 6px;
 }
 
-/* TOAST */
 .toast {
     position: fixed;
     bottom: 20px;
@@ -129,21 +120,6 @@ button:hover {
     opacity: 1;
 }
 
-/* HIDDEN */
 .hidden {
     display: none;
-}
-
-/* MOBILE */
-@media(max-width:768px){
-    .app {
-        flex-direction: column;
-    }
-
-    .sidebar {
-        width: 100%;
-        height: auto;
-        display: flex;
-        gap: 10px;
-    }
 }

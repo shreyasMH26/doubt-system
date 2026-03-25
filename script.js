@@ -2,6 +2,7 @@ let doubts = [];
 let chart = null;
 let currentUser = "";
 let currentRole = "";
+let userId = "";
 
 // banned words
 const bannedWords = ["idiot", "stupid", "hate", "fool"];
@@ -26,13 +27,11 @@ function login() {
     let name = document.getElementById("nameInput").value.trim();
     let role = document.getElementById("roleSelect").value;
 
-    if (!name) {
-        showToast("Enter your name");
-        return;
-    }
+    if (!name) return showToast("Enter your name");
 
     currentUser = name;
     currentRole = role;
+    userId = "U" + Math.floor(Math.random() * 10000);
 
     document.getElementById("loginPage").classList.add("hidden");
 
@@ -64,20 +63,18 @@ function showToast(msg) {
 function submitDoubt() {
     let input = document.getElementById("doubtInput");
     let text = input.value.trim().toLowerCase();
-
     if (!text) return;
 
     let isBad = bannedWords.some(word => text.includes(word));
-    if (isBad) {
-        showToast("⚠️ Inappropriate language!");
-        return;
-    }
+    if (isBad) return showToast("⚠️ Inappropriate language!");
 
     doubts.unshift({
         id: Date.now(),
         text,
         user: currentUser,
+        userId,
         votes: 0,
+        seen: false,
         answered: false,
         reply: null,
         time: new Date().toLocaleTimeString()
@@ -86,7 +83,6 @@ function submitDoubt() {
     saveDoubts();
     input.value = "";
     showToast("Doubt submitted!");
-
     displayDoubts();
 }
 
@@ -102,21 +98,36 @@ function displayDoubts() {
     let answered = doubts.filter(d => d.answered).length;
     document.getElementById("answeredCount").innerText = answered;
 
+    // top user
+    let counts = {};
+    doubts.forEach(d => counts[d.user] = (counts[d.user] || 0) + 1);
+    let topUser = Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0];
+    document.getElementById("topUser").innerText = topUser || "N/A";
+
     doubts.sort((a, b) => b.votes - a.votes);
 
     doubts.forEach(d => {
+
+        if (currentRole === "teacher") d.seen = true;
+
         let div = document.createElement("div");
         div.className = "doubt " + (d.answered ? "answered" : "");
 
         div.innerHTML = `
         <b>💬 ${d.text}</b><br>
         <small>${d.time}</small><br>
-        <small>👤 ${currentRole === "teacher" ? d.user : "Anonymous"}</small><br><br>
+
+        <small>
+        👤 ${currentRole === "teacher" ? d.user + " (" + d.userId + ")" : "Anonymous"}
+        </small><br>
+
+        <small>👀 ${d.seen ? "Seen" : "Unseen"}</small><br><br>
 
         👍 ${d.votes}
         <button onclick="upvote(${d.id})">+1</button>
         <button onclick="markAnswered(${d.id})">✔</button>
         <button onclick="generateAI(${d.id})">🤖</button>
+
         ${currentRole === "teacher" ? `<button onclick="deleteDoubt(${d.id})">🗑️</button>` : ""}
 
         ${d.reply ? `<div class="ai">🤖 ${d.reply}</div>` : ""}
@@ -125,6 +136,7 @@ function displayDoubts() {
         list.appendChild(div);
     });
 
+    saveDoubts();
     updateChart();
 }
 
@@ -161,7 +173,6 @@ function generateAI(id) {
             "Practice similar problems",
             "Focus on concept"
         ];
-
         d.reply = res[Math.floor(Math.random() * res.length)];
         saveDoubts();
         displayDoubts();
