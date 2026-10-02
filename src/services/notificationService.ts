@@ -42,15 +42,7 @@ export async function getUnreadNotificationCount(userId: string): Promise<number
   return count ?? 0;
 }
 
-export async function getSubjects() {
-  const { data, error } = await supabase
-    .from('subjects')
-    .select('*')
-    .order('name');
-
-  if (error) throw error;
-  return data ?? [];
-}
+export { getSubjects, DEFAULT_SUBJECTS } from './subjectService';
 
 export async function getPlatformStats() {
   const [

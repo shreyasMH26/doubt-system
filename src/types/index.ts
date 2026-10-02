@@ -24,6 +24,8 @@ export interface Doubt {
   title: string;
   description: string;
   subject: string;
+  subject_id?: string | null;
+  subject_ref?: Subject;
   branch: string | null;
   semester: number | null;
   tags: string[];
@@ -81,7 +83,7 @@ export interface Subject {
   slug: string;
   description: string | null;
   icon: string | null;
-  created_at: string;
+  created_at?: string;
 }
 
 export interface Bookmark {

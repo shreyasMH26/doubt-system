@@ -21,6 +21,7 @@ export function AskDoubtPage() {
     title: '',
     description: '',
     subject: '',
+    subject_id: '',
     branch: profile?.branch || '',
     semester: profile?.semester?.toString() || '',
     tags: [] as string[],
@@ -29,7 +30,10 @@ export function AskDoubtPage() {
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: subjects = [] } = useQuery({ queryKey: ['subjects'], queryFn: getSubjects });
+  const { data: subjects = [], isLoading: subjectsLoading } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: getSubjects,
+  });
 
   // Similar doubts search
   const { data: similarDoubts } = useQuery({
@@ -90,6 +94,7 @@ export function AskDoubtPage() {
         title: form.title.trim(),
         description: form.description.trim(),
         subject: form.subject,
+        subject_id: form.subject_id || undefined,
         branch: form.branch || undefined,
         semester: form.semester ? Number(form.semester) : undefined,
         tags: form.tags,
@@ -180,9 +185,26 @@ export function AskDoubtPage() {
         <div className="grid sm:grid-cols-3 gap-3">
           <div>
             <label className="label">Subject <span className="text-red-400">*</span></label>
-            <select className="input" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}>
-              <option value="">Select subject</option>
-              {subjects.map((s: { name: string }) => <option key={s.name} value={s.name}>{s.name}</option>)}
+            <select
+              className="input"
+              value={form.subject_id || form.subject}
+              onChange={(e) => {
+                const val = e.target.value;
+                const found = subjects.find((s) => s.id === val || s.name === val);
+                setForm((f) => ({
+                  ...f,
+                  subject: found ? found.name : val,
+                  subject_id: found ? found.id : '',
+                }));
+              }}
+              disabled={subjectsLoading && subjects.length === 0}
+            >
+              <option value="">{subjectsLoading ? 'Loading subjects...' : 'Select subject'}</option>
+              {subjects.map((s) => (
+                <option key={s.id || s.name} value={s.id || s.name}>
+                  {s.icon ? `${s.icon} ${s.name}` : s.name}
+                </option>
+              ))}
             </select>
           </div>
           <div>

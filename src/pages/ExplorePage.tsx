@@ -122,7 +122,11 @@ export function ExplorePage() {
             <label className="label text-[11px]">Subject</label>
             <select className="input text-xs" value={filters.subject} onChange={(e) => set('subject', e.target.value)}>
               <option value="all">All Subjects</option>
-              {subjects.map((s: { name: string }) => <option key={s.name} value={s.name}>{s.name}</option>)}
+              {subjects.map((s) => (
+                <option key={s.name} value={s.name}>
+                  {s.icon ? `${s.icon} ${s.name}` : s.name}
+                </option>
+              ))}
             </select>
           </div>
           <div>

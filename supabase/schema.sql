@@ -47,6 +47,7 @@ create table if not exists public.doubts (
   title text not null,
   description text not null,
   subject text not null,
+  subject_id uuid references public.subjects(id) on delete set null,
   branch text,
   semester integer,
   tags text[] default '{}',
@@ -163,19 +164,74 @@ create table if not exists public.activity_logs (
 );
 
 -- ==============================================================================
--- 3. SEED DEFAULT SUBJECTS
+-- 3. SEED DEFAULT SUBJECTS (JIT, CSE, & Engineering Catalog)
 -- ==============================================================================
+
+-- Ensure unique constraints exist on subjects
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'subjects_name_key') then
+    begin
+      alter table public.subjects add constraint subjects_name_key unique (name);
+    exception when others then null;
+    end;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'subjects_slug_key') then
+    begin
+      alter table public.subjects add constraint subjects_slug_key unique (slug);
+    exception when others then null;
+    end;
+  end if;
+end $$;
+
 insert into public.subjects (name, slug, description, icon) values
+  -- CSE & ISE Core
+  ('Data Structures & Algorithms', 'data-structures-algorithms', 'Arrays, Trees, Graphs, Sorting, Dynamic Programming', '💻'),
+  ('Database Management Systems', 'database-management-systems', 'SQL, Normalization, Transactions, Indexing', '🗄️'),
+  ('Operating Systems', 'operating-systems', 'Processes, Threads, Memory Management, CPU Scheduling', '🖥️'),
+  ('Computer Networks', 'computer-networks', 'OSI Model, TCP/IP, Routing Protocols, Sockets', '🌐'),
+  ('Object-Oriented Programming (Java/C++)', 'object-oriented-programming', 'Classes, Inheritance, Polymorphism, Design Patterns', '☕'),
+  ('Design & Analysis of Algorithms', 'design-analysis-algorithms', 'Divide & Conquer, Greedy, DP, NP-Completeness', '⚡'),
+  ('Theory of Computation & Automata', 'theory-of-computation', 'DFA, NFA, Regular Expressions, Turing Machines', '🔄'),
+  ('Computer Organization & Architecture', 'computer-organization-architecture', 'Instruction Sets, Pipeline Hazards, Cache Memory', '🏗️'),
+  ('Software Engineering & Agile', 'software-engineering', 'SDLC, Agile Scrum, System Design, Testing Methodologies', '📊'),
+  ('Web Technologies & Full Stack', 'web-technologies', 'HTML, CSS, JavaScript, React, Node.js, REST APIs', '🌐'),
+  ('Artificial Intelligence & Machine Learning', 'ai-machine-learning', 'Supervised Learning, Neural Networks, Deep Learning', '🤖'),
+  ('Cloud Computing & DevOps', 'cloud-computing', 'AWS, GCP, Docker, Kubernetes, CI/CD Pipelines', '☁️'),
+  ('Cyber Security & Cryptography', 'cyber-security', 'Network Security, RSA, AES, Authentication Protocols', '🔒'),
+  ('System Software & Compilers', 'compilers-system-software', 'Lexical Analysis, Parsing, Syntax Directed Translation', '⚙️'),
+
+  -- First Year / Common Engineering (VTU / JIT)
+  ('Engineering Mathematics - I', 'engineering-math-1', 'Calculus, Linear Algebra, Matrix Diagonalization', '📐'),
+  ('Engineering Mathematics - II', 'engineering-math-2', 'Differential Equations, Vector Calculus, Laplace Transforms', '📐'),
+  ('Engineering Physics', 'engineering-physics', 'Quantum Mechanics, Lasers, Optical Fibers, Semiconductors', '⚛️'),
+  ('Engineering Chemistry', 'engineering-chemistry', 'Electrochemistry, Battery Tech, Polymers, Water Tech', '🧪'),
+  ('Problem Solving through C (CPS)', 'problem-solving-c', 'C Programming, Pointers, Structures, File Handling', '💻'),
+  ('Basic Electrical Engineering', 'basic-electrical', 'DC/AC Circuits, Transformers, Single & 3-Phase Motors', '⚡'),
+  ('Basic Electronics Engineering', 'basic-electronics', 'Diodes, BJTs, Op-Amps, Digital Logic, Number Systems', '🔌'),
+  ('Elements of Mechanical Engineering', 'mechanical-basics', 'Thermodynamics, Turbines, Refrigeration, Lathe, Milling', '⚙️'),
+  ('Elements of Civil Engineering', 'civil-basics', 'Statics, Coplanar Forces, Surveying, Friction', '🏗️'),
+  ('Technical English & Communication', 'technical-english', 'Technical Writing, Business Correspondence, Presentation', '📝'),
+  ('Environmental Studies & Ethics', 'environmental-studies', 'Ecology, Pollution Control, Sustainable Engineering', '🌱'),
+
+  -- Core Disciplines (ECE / EEE / MECH / CIVIL)
+  ('Signals & Systems', 'signals-systems', 'Continuous & Discrete Signals, Fourier Analysis, Z-Transform', '📡'),
+  ('Digital Electronics & Microcontrollers', 'digital-electronics', 'Combinational Logic, Flip-Flops, 8051 & ARM Architecture', '🔌'),
+  ('Control Systems', 'control-systems', 'Transfer Functions, Root Locus, Nyquist & Bode Stability', '🎛️'),
+  ('VLSI Design & Embedded Systems', 'vlsi-embedded-systems', 'CMOS Inverters, FPGA, Verilog HDL, Embedded C', '🔬'),
+  ('Thermodynamics & Heat Transfer', 'thermodynamics-heat-transfer', '1st & 2nd Laws, Rankine Cycle, Heat Exchangers', '🔥'),
+  ('Strength of Materials & Structures', 'strength-of-materials', 'Stress, Strain, SFD/BMD, Torsion, Column Deflection', '🏛️'),
+
+  -- General Academic
+  ('Aptitude & Placement Prep', 'aptitude-placement-prep', 'Quantitative Aptitude, Logical Reasoning, Coding Rounds', '🎯'),
+  ('Projects & Academic Doubts', 'projects-academic-doubts', 'Capstone Projects, Mini Projects, General Academic Doubts', '📚'),
   ('Mathematics', 'mathematics', 'Calculus, Algebra, Discrete Math', '📐'),
-  ('Physics', 'physics', 'Mechanics, Electromagnetism, Optics', '⚛️'),
-  ('Chemistry', 'chemistry', 'Organic, Inorganic, Physical Chemistry', '🧪'),
   ('Computer Science', 'computer-science', 'DSA, OS, DBMS, Networks', '💻'),
   ('Electronics', 'electronics', 'Circuits, Signals, Digital Systems', '🔌'),
   ('Electrical', 'electrical', 'Machines, Power Systems, Control', '⚡'),
   ('Mechanical', 'mechanical', 'Thermodynamics, Fluid Mechanics, Manufacturing', '⚙️'),
   ('Civil', 'civil', 'Structures, Geotechnics, Transportation', '🏗️'),
-  ('English', 'english', 'Communication, Technical Writing', '📝'),
-  ('General', 'general', 'Miscellaneous academic doubts', '📚')
+  ('General', 'general', 'General academic doubts', '📚')
 on conflict (name) do update set
   slug = excluded.slug,
   description = excluded.description,
@@ -187,6 +243,7 @@ on conflict (name) do update set
 create index if not exists doubts_search_idx on public.doubts
   using gin(to_tsvector('english', title || ' ' || description));
 create index if not exists doubts_subject_idx on public.doubts(subject);
+create index if not exists doubts_subject_id_idx on public.doubts(subject_id);
 create index if not exists doubts_branch_idx on public.doubts(branch);
 create index if not exists doubts_semester_idx on public.doubts(semester);
 create index if not exists doubts_status_idx on public.doubts(status);

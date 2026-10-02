@@ -96,16 +96,29 @@ export async function createDoubt(doubt: {
   title: string;
   description: string;
   subject: string;
+  subject_id?: string;
   branch?: string;
   semester?: number;
   tags?: string[];
   author_id: string;
 }): Promise<Doubt> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('doubts')
     .insert(doubt)
     .select()
     .single();
+
+  // If subject_id column is not yet migrated in database, retry safely without it
+  if (error && (error.code === '42703' || error.message?.includes('subject_id')) && doubt.subject_id) {
+    const { subject_id, ...fallbackDoubt } = doubt;
+    const retry = await supabase
+      .from('doubts')
+      .insert(fallbackDoubt)
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) throw error;
   return data as Doubt;
