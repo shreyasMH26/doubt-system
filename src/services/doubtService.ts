@@ -92,6 +92,11 @@ export async function getDoubtById(id: string): Promise<Doubt | null> {
   return data as Doubt;
 }
 
+function isUuid(val?: string | null): boolean {
+  if (!val || typeof val !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+}
+
 export async function createDoubt(doubt: {
   title: string;
   description: string;
@@ -102,25 +107,102 @@ export async function createDoubt(doubt: {
   tags?: string[];
   author_id: string;
 }): Promise<Doubt> {
+  // Ensure we have the current authenticated user to satisfy RLS (auth.uid() = author_id)
+  let authorId = doubt.author_id;
+  try {
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData?.user) {
+      authorId = authData.user.id;
+
+      // Ensure profile row exists to prevent foreign key violation on doubts_author_id_fkey
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', authorId)
+        .maybeSingle();
+
+      if (!profileRow) {
+        const u = authData.user;
+        const username =
+          u.user_metadata?.username ||
+          u.email?.split('@')[0] ||
+          `student_${u.id.slice(0, 6)}`;
+        const fullName = u.user_metadata?.full_name || username;
+
+        await supabase.from('profiles').upsert({
+          id: u.id,
+          email: u.email || '',
+          username,
+          full_name: fullName,
+          branch: u.user_metadata?.branch || null,
+          semester: u.user_metadata?.semester ? Number(u.user_metadata.semester) : null,
+          role: 'student',
+        });
+      }
+    }
+  } catch (authErr) {
+    console.warn('[DoubtHub] Pre-insert auth verification check:', authErr);
+  }
+
+  // Build clean payload.
+  // Note: only pass subject_id if it is a syntactically valid UUID; non-UUID fallback IDs are ignored.
+  const payload: Record<string, unknown> = {
+    title: doubt.title.trim(),
+    description: doubt.description.trim(),
+    subject: doubt.subject.trim(),
+    author_id: authorId,
+    branch: doubt.branch || null,
+    semester: typeof doubt.semester === 'number' ? doubt.semester : null,
+    tags: Array.isArray(doubt.tags) ? doubt.tags : [],
+    status: 'open',
+  };
+
+  if (doubt.subject_id && isUuid(doubt.subject_id)) {
+    payload.subject_id = doubt.subject_id;
+  }
+
   let { data, error } = await supabase
     .from('doubts')
-    .insert(doubt)
+    .insert(payload)
     .select()
     .single();
 
-  // If subject_id column is not yet migrated in database, retry safely without it
-  if (error && (error.code === '42703' || error.message?.includes('subject_id')) && doubt.subject_id) {
-    const { subject_id, ...fallbackDoubt } = doubt;
+  // If insert failed and subject_id was included, retry without subject_id
+  if (error && payload.subject_id) {
+    console.warn('[DoubtHub] Insert with subject_id failed, retrying without subject_id:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+
+    const { subject_id, ...fallbackPayload } = payload;
     const retry = await supabase
       .from('doubts')
-      .insert(fallbackDoubt)
+      .insert(fallbackPayload)
       .select()
       .single();
+
     data = retry.data;
     error = retry.error;
   }
 
-  if (error) throw error;
+  if (error) {
+    console.error('[DoubtHub] createDoubt final error:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      payload,
+    });
+    const errorMsg = error.message || error.details || error.hint || `Failed to post doubt (Error ${error.code || 'unknown'})`;
+    const fullErr = new Error(errorMsg);
+    (fullErr as any).code = error.code;
+    (fullErr as any).details = error.details;
+    (fullErr as any).hint = error.hint;
+    throw fullErr;
+  }
+
   return data as Doubt;
 }
 

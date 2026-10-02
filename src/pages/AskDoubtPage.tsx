@@ -116,7 +116,10 @@ export function AskDoubtPage() {
       toast.success('Doubt posted! 🎉');
       navigate(`/doubt/${doubt.id}`);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to post doubt');
+      console.error('[DoubtHub] handleSubmit error:', err);
+      const anyErr = err as { message?: string; details?: string; hint?: string; code?: string };
+      const errorText = anyErr?.message || anyErr?.details || (err instanceof Error ? err.message : 'Failed to post doubt');
+      toast.error(errorText);
     } finally {
       setSubmitting(false);
     }
