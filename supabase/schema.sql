@@ -1,15 +1,19 @@
--- ============================================================
--- DoubtHub — Supabase PostgreSQL Schema
--- Run this in your Supabase SQL Editor
--- ============================================================
+-- ==============================================================================
+-- DoubtHub — Complete Supabase PostgreSQL Schema
+-- Idempotent, safe execution order for the Supabase SQL Editor
+-- ==============================================================================
 
--- Enable required extensions
+-- ==============================================================================
+-- 1. EXTENSIONS
+-- ==============================================================================
 create extension if not exists "uuid-ossp";
-create extension if not exists "pg_trgm"; -- for fuzzy text search
+create extension if not exists "pg_trgm";
 
--- ============================================================
+-- ==============================================================================
+-- 2. BASE TABLES (in strict dependency order)
+-- ==============================================================================
+
 -- PROFILES (extends auth.users)
--- ============================================================
 create table if not exists public.profiles (
   id uuid references auth.users(id) on delete cascade primary key,
   email text not null,
@@ -27,9 +31,7 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
--- ============================================================
 -- SUBJECTS
--- ============================================================
 create table if not exists public.subjects (
   id uuid default uuid_generate_v4() primary key,
   name text not null unique,
@@ -39,23 +41,7 @@ create table if not exists public.subjects (
   created_at timestamptz not null default now()
 );
 
--- Seed default subjects
-insert into public.subjects (name, slug, description, icon) values
-  ('Mathematics', 'mathematics', 'Calculus, Algebra, Discrete Math', '📐'),
-  ('Physics', 'physics', 'Mechanics, Electromagnetism, Optics', '⚛️'),
-  ('Chemistry', 'chemistry', 'Organic, Inorganic, Physical Chemistry', '🧪'),
-  ('Computer Science', 'computer-science', 'DSA, OS, DBMS, Networks', '💻'),
-  ('Electronics', 'electronics', 'Circuits, Signals, Digital Systems', '🔌'),
-  ('Electrical', 'electrical', 'Machines, Power Systems, Control', '⚡'),
-  ('Mechanical', 'mechanical', 'Thermodynamics, Fluid Mechanics, Manufacturing', '⚙️'),
-  ('Civil', 'civil', 'Structures, Geotechnics, Transportation', '🏗️'),
-  ('English', 'english', 'Communication, Technical Writing', '📝'),
-  ('General', 'general', 'Miscellaneous academic doubts', '📚')
-on conflict do nothing;
-
--- ============================================================
 -- DOUBTS
--- ============================================================
 create table if not exists public.doubts (
   id uuid default uuid_generate_v4() primary key,
   title text not null,
@@ -73,20 +59,7 @@ create table if not exists public.doubts (
   updated_at timestamptz not null default now()
 );
 
--- Full-text search index
-create index if not exists doubts_search_idx on public.doubts
-  using gin(to_tsvector('english', title || ' ' || description));
-create index if not exists doubts_subject_idx on public.doubts(subject);
-create index if not exists doubts_branch_idx on public.doubts(branch);
-create index if not exists doubts_semester_idx on public.doubts(semester);
-create index if not exists doubts_status_idx on public.doubts(status);
-create index if not exists doubts_author_idx on public.doubts(author_id);
-create index if not exists doubts_created_at_idx on public.doubts(created_at desc);
-create index if not exists doubts_pinned_idx on public.doubts(is_pinned);
-
--- ============================================================
 -- ANSWERS
--- ============================================================
 create table if not exists public.answers (
   id uuid default uuid_generate_v4() primary key,
   doubt_id uuid not null references public.doubts(id) on delete cascade,
@@ -97,12 +70,7 @@ create table if not exists public.answers (
   updated_at timestamptz not null default now()
 );
 
-create index if not exists answers_doubt_idx on public.answers(doubt_id);
-create index if not exists answers_author_idx on public.answers(author_id);
-
--- ============================================================
 -- COMMENTS
--- ============================================================
 create table if not exists public.comments (
   id uuid default uuid_generate_v4() primary key,
   answer_id uuid not null references public.answers(id) on delete cascade,
@@ -112,11 +80,7 @@ create table if not exists public.comments (
   updated_at timestamptz not null default now()
 );
 
-create index if not exists comments_answer_idx on public.comments(answer_id);
-
--- ============================================================
 -- ATTACHMENTS
--- ============================================================
 create table if not exists public.attachments (
   id uuid default uuid_generate_v4() primary key,
   url text not null,
@@ -130,22 +94,7 @@ create table if not exists public.attachments (
   check (doubt_id is not null or answer_id is not null)
 );
 
--- ============================================================
--- BOOKMARKS
--- ============================================================
-create table if not exists public.bookmarks (
-  id uuid default uuid_generate_v4() primary key,
-  user_id uuid not null references public.profiles(id) on delete cascade,
-  doubt_id uuid not null references public.doubts(id) on delete cascade,
-  created_at timestamptz not null default now(),
-  unique(user_id, doubt_id)
-);
-
-create index if not exists bookmarks_user_idx on public.bookmarks(user_id);
-
--- ============================================================
 -- VOTES
--- ============================================================
 create table if not exists public.votes (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -156,11 +105,16 @@ create table if not exists public.votes (
   unique(user_id, target_id, target_type)
 );
 
-create index if not exists votes_target_idx on public.votes(target_id, target_type);
+-- BOOKMARKS
+create table if not exists public.bookmarks (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  doubt_id uuid not null references public.doubts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique(user_id, doubt_id)
+);
 
--- ============================================================
 -- REPORTS
--- ============================================================
 create table if not exists public.reports (
   id uuid default uuid_generate_v4() primary key,
   reporter_id uuid not null references public.profiles(id) on delete cascade,
@@ -174,11 +128,7 @@ create table if not exists public.reports (
   created_at timestamptz not null default now()
 );
 
-create index if not exists reports_status_idx on public.reports(status);
-
--- ============================================================
 -- NOTIFICATIONS
--- ============================================================
 create table if not exists public.notifications (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -190,11 +140,7 @@ create table if not exists public.notifications (
   created_at timestamptz not null default now()
 );
 
-create index if not exists notifications_user_idx on public.notifications(user_id, is_read);
-
--- ============================================================
 -- ADMIN ACTIONS LOG
--- ============================================================
 create table if not exists public.admin_actions (
   id uuid default uuid_generate_v4() primary key,
   admin_id uuid not null references public.profiles(id) on delete cascade,
@@ -205,12 +151,7 @@ create table if not exists public.admin_actions (
   created_at timestamptz not null default now()
 );
 
-create index if not exists admin_actions_admin_idx on public.admin_actions(admin_id);
-create index if not exists admin_actions_created_idx on public.admin_actions(created_at desc);
-
--- ============================================================
--- ACTIVITY LOGS (platform-wide student audit / event trail)
--- ============================================================
+-- ACTIVITY LOGS (platform audit & event history)
 create table if not exists public.activity_logs (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -221,12 +162,55 @@ create table if not exists public.activity_logs (
   created_at timestamptz not null default now()
 );
 
+-- ==============================================================================
+-- 3. SEED DEFAULT SUBJECTS
+-- ==============================================================================
+insert into public.subjects (name, slug, description, icon) values
+  ('Mathematics', 'mathematics', 'Calculus, Algebra, Discrete Math', '📐'),
+  ('Physics', 'physics', 'Mechanics, Electromagnetism, Optics', '⚛️'),
+  ('Chemistry', 'chemistry', 'Organic, Inorganic, Physical Chemistry', '🧪'),
+  ('Computer Science', 'computer-science', 'DSA, OS, DBMS, Networks', '💻'),
+  ('Electronics', 'electronics', 'Circuits, Signals, Digital Systems', '🔌'),
+  ('Electrical', 'electrical', 'Machines, Power Systems, Control', '⚡'),
+  ('Mechanical', 'mechanical', 'Thermodynamics, Fluid Mechanics, Manufacturing', '⚙️'),
+  ('Civil', 'civil', 'Structures, Geotechnics, Transportation', '🏗️'),
+  ('English', 'english', 'Communication, Technical Writing', '📝'),
+  ('General', 'general', 'Miscellaneous academic doubts', '📚')
+on conflict (name) do update set
+  slug = excluded.slug,
+  description = excluded.description,
+  icon = excluded.icon;
+
+-- ==============================================================================
+-- 4. INDEXES
+-- ==============================================================================
+create index if not exists doubts_search_idx on public.doubts
+  using gin(to_tsvector('english', title || ' ' || description));
+create index if not exists doubts_subject_idx on public.doubts(subject);
+create index if not exists doubts_branch_idx on public.doubts(branch);
+create index if not exists doubts_semester_idx on public.doubts(semester);
+create index if not exists doubts_status_idx on public.doubts(status);
+create index if not exists doubts_author_idx on public.doubts(author_id);
+create index if not exists doubts_created_at_idx on public.doubts(created_at desc);
+create index if not exists doubts_pinned_idx on public.doubts(is_pinned);
+
+create index if not exists answers_doubt_idx on public.answers(doubt_id);
+create index if not exists answers_author_idx on public.answers(author_id);
+
+create index if not exists comments_answer_idx on public.comments(answer_id);
+
+create index if not exists votes_target_idx on public.votes(target_id, target_type);
+create index if not exists bookmarks_user_idx on public.bookmarks(user_id);
+create index if not exists reports_status_idx on public.reports(status);
+create index if not exists notifications_user_idx on public.notifications(user_id, is_read);
+create index if not exists admin_actions_admin_idx on public.admin_actions(admin_id);
+create index if not exists admin_actions_created_idx on public.admin_actions(created_at desc);
 create index if not exists activity_logs_user_idx on public.activity_logs(user_id);
 create index if not exists activity_logs_created_idx on public.activity_logs(created_at desc);
 
--- ============================================================
--- VIEWS (for easy querying)
--- ============================================================
+-- ==============================================================================
+-- 5. VIEWS (created after doubts, answers, and votes exist)
+-- ==============================================================================
 
 -- Doubt vote counts
 create or replace view public.doubt_vote_counts as
@@ -243,11 +227,11 @@ create or replace view public.doubt_answer_counts as
   select doubt_id, count(*) as answer_count
   from public.answers group by doubt_id;
 
--- ============================================================
--- FUNCTIONS & TRIGGERS
--- ============================================================
+-- ==============================================================================
+-- 6. FUNCTIONS & TRIGGERS
+-- ==============================================================================
 
--- Auto-update updated_at
+-- Auto-update updated_at timestamp
 create or replace function public.handle_updated_at()
 returns trigger as $$
 begin
@@ -256,19 +240,23 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace trigger doubts_updated_at
+drop trigger if exists doubts_updated_at on public.doubts;
+create trigger doubts_updated_at
   before update on public.doubts
   for each row execute function public.handle_updated_at();
 
-create or replace trigger answers_updated_at
+drop trigger if exists answers_updated_at on public.answers;
+create trigger answers_updated_at
   before update on public.answers
   for each row execute function public.handle_updated_at();
 
-create or replace trigger comments_updated_at
+drop trigger if exists comments_updated_at on public.comments;
+create trigger comments_updated_at
   before update on public.comments
   for each row execute function public.handle_updated_at();
 
-create or replace trigger profiles_updated_at
+drop trigger if exists profiles_updated_at on public.profiles;
+create trigger profiles_updated_at
   before update on public.profiles
   for each row execute function public.handle_updated_at();
 
@@ -282,12 +270,14 @@ begin
     new.email,
     coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1))
-  );
+  )
+  on conflict (id) do nothing;
   return new;
 end;
 $$ language plpgsql security definer;
 
-create or replace trigger on_auth_user_created
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
@@ -304,7 +294,7 @@ begin
   if new.is_accepted = true and old.is_accepted = false then
     update public.profiles set reputation = reputation + 15
     where id = new.author_id;
-    -- Notify answerer
+
     insert into public.notifications (user_id, type, title, message, link)
     values (
       new.author_id,
@@ -318,7 +308,8 @@ begin
 end;
 $$ language plpgsql security definer;
 
-create or replace trigger on_answer_accepted
+drop trigger if exists on_answer_accepted on public.answers;
+create trigger on_answer_accepted
   after update on public.answers
   for each row execute function public.handle_answer_accepted();
 
@@ -343,7 +334,6 @@ begin
     );
   end if;
 
-  -- Give answerer reputation
   update public.profiles set reputation = reputation + 5
   where id = new.author_id;
 
@@ -351,26 +341,27 @@ begin
 end;
 $$ language plpgsql security definer;
 
-create or replace trigger on_new_answer
+drop trigger if exists on_new_answer on public.answers;
+create trigger on_new_answer
   after insert on public.answers
   for each row execute function public.handle_new_answer();
 
--- ============================================================
--- ROW LEVEL SECURITY
--- ============================================================
+-- ==============================================================================
+-- 7. ROW LEVEL SECURITY (RLS)
+-- ==============================================================================
 
 alter table public.profiles enable row level security;
+alter table public.subjects enable row level security;
 alter table public.doubts enable row level security;
 alter table public.answers enable row level security;
 alter table public.comments enable row level security;
 alter table public.attachments enable row level security;
-alter table public.bookmarks enable row level security;
 alter table public.votes enable row level security;
+alter table public.bookmarks enable row level security;
 alter table public.reports enable row level security;
 alter table public.notifications enable row level security;
 alter table public.admin_actions enable row level security;
 alter table public.activity_logs enable row level security;
-alter table public.subjects enable row level security;
 
 -- Helper function: check if current user is admin
 create or replace function public.is_admin()
@@ -390,34 +381,50 @@ returns boolean as $$
   );
 $$ language sql security definer stable;
 
+-- ------------------------------------------------------------------------------
+-- POLICIES (with idempotent DROP POLICY IF EXISTS)
+-- ------------------------------------------------------------------------------
+
 -- ---- PROFILES ----
+drop policy if exists "profiles_select_all" on public.profiles;
 create policy "profiles_select_all" on public.profiles
   for select using (true);
 
+drop policy if exists "profiles_insert_own" on public.profiles;
 create policy "profiles_insert_own" on public.profiles
   for insert with check (auth.uid() = id);
 
+drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own" on public.profiles
   for update using (auth.uid() = id)
   with check (
     auth.uid() = id
-    and role = (select role from public.profiles where id = auth.uid()) -- cannot self-promote
+    and role = (select role from public.profiles where id = auth.uid())
   );
 
+drop policy if exists "profiles_update_admin" on public.profiles;
 create policy "profiles_update_admin" on public.profiles
   for update using (public.is_admin());
 
+drop policy if exists "profiles_delete_admin" on public.profiles;
 create policy "profiles_delete_admin" on public.profiles
   for delete using (public.is_admin());
 
 -- ---- SUBJECTS ----
-create policy "subjects_select_all" on public.subjects for select using (true);
+drop policy if exists "subjects_select_all" on public.subjects;
+create policy "subjects_select_all" on public.subjects
+  for select using (true);
+
+drop policy if exists "subjects_manage_admin" on public.subjects;
 create policy "subjects_manage_admin" on public.subjects
   for all using (public.is_admin());
 
 -- ---- DOUBTS ----
-create policy "doubts_select_all" on public.doubts for select using (true);
+drop policy if exists "doubts_select_all" on public.doubts;
+create policy "doubts_select_all" on public.doubts
+  for select using (true);
 
+drop policy if exists "doubts_insert_auth" on public.doubts;
 create policy "doubts_insert_auth" on public.doubts
   for insert with check (
     auth.uid() is not null
@@ -425,21 +432,28 @@ create policy "doubts_insert_auth" on public.doubts
     and not public.is_suspended()
   );
 
+drop policy if exists "doubts_update_own" on public.doubts;
 create policy "doubts_update_own" on public.doubts
   for update using (auth.uid() = author_id and not public.is_suspended());
 
+drop policy if exists "doubts_update_admin" on public.doubts;
 create policy "doubts_update_admin" on public.doubts
   for update using (public.is_admin());
 
+drop policy if exists "doubts_delete_own" on public.doubts;
 create policy "doubts_delete_own" on public.doubts
   for delete using (auth.uid() = author_id);
 
+drop policy if exists "doubts_delete_admin" on public.doubts;
 create policy "doubts_delete_admin" on public.doubts
   for delete using (public.is_admin());
 
 -- ---- ANSWERS ----
-create policy "answers_select_all" on public.answers for select using (true);
+drop policy if exists "answers_select_all" on public.answers;
+create policy "answers_select_all" on public.answers
+  for select using (true);
 
+drop policy if exists "answers_insert_auth" on public.answers;
 create policy "answers_insert_auth" on public.answers
   for insert with check (
     auth.uid() is not null
@@ -447,23 +461,30 @@ create policy "answers_insert_auth" on public.answers
     and not public.is_suspended()
   );
 
+drop policy if exists "answers_update_own" on public.answers;
 create policy "answers_update_own" on public.answers
   for update using (auth.uid() = author_id and not public.is_suspended());
 
+drop policy if exists "answers_update_doubt_author" on public.answers;
 create policy "answers_update_doubt_author" on public.answers
   for update using (
     exists (select 1 from public.doubts where id = answers.doubt_id and author_id = auth.uid())
   );
 
+drop policy if exists "answers_delete_own" on public.answers;
 create policy "answers_delete_own" on public.answers
   for delete using (auth.uid() = author_id);
 
+drop policy if exists "answers_delete_admin" on public.answers;
 create policy "answers_delete_admin" on public.answers
   for delete using (public.is_admin());
 
 -- ---- COMMENTS ----
-create policy "comments_select_all" on public.comments for select using (true);
+drop policy if exists "comments_select_all" on public.comments;
+create policy "comments_select_all" on public.comments
+  for select using (true);
 
+drop policy if exists "comments_insert_auth" on public.comments;
 create policy "comments_insert_auth" on public.comments
   for insert with check (
     auth.uid() is not null
@@ -471,74 +492,111 @@ create policy "comments_insert_auth" on public.comments
     and not public.is_suspended()
   );
 
+drop policy if exists "comments_delete_own" on public.comments;
 create policy "comments_delete_own" on public.comments
   for delete using (auth.uid() = author_id);
 
+drop policy if exists "comments_delete_admin" on public.comments;
 create policy "comments_delete_admin" on public.comments
   for delete using (public.is_admin());
 
 -- ---- ATTACHMENTS ----
-create policy "attachments_select_all" on public.attachments for select using (true);
+drop policy if exists "attachments_select_all" on public.attachments;
+create policy "attachments_select_all" on public.attachments
+  for select using (true);
 
+drop policy if exists "attachments_insert_auth" on public.attachments;
 create policy "attachments_insert_auth" on public.attachments
   for insert with check (auth.uid() = uploaded_by and not public.is_suspended());
 
+drop policy if exists "attachments_delete_own" on public.attachments;
 create policy "attachments_delete_own" on public.attachments
   for delete using (auth.uid() = uploaded_by);
 
+drop policy if exists "attachments_delete_admin" on public.attachments;
 create policy "attachments_delete_admin" on public.attachments
   for delete using (public.is_admin());
 
--- ---- BOOKMARKS ----
-create policy "bookmarks_own" on public.bookmarks
-  for all using (auth.uid() = user_id);
-
 -- ---- VOTES ----
-create policy "votes_select_all" on public.votes for select using (true);
+drop policy if exists "votes_select_all" on public.votes;
+create policy "votes_select_all" on public.votes
+  for select using (true);
 
+drop policy if exists "votes_own" on public.votes;
 create policy "votes_own" on public.votes
   for all using (auth.uid() = user_id)
   with check (auth.uid() = user_id and not public.is_suspended());
 
+-- ---- BOOKMARKS ----
+drop policy if exists "bookmarks_own" on public.bookmarks;
+create policy "bookmarks_own" on public.bookmarks
+  for all using (auth.uid() = user_id);
+
 -- ---- REPORTS ----
+drop policy if exists "reports_insert_auth" on public.reports;
 create policy "reports_insert_auth" on public.reports
   for insert with check (auth.uid() = reporter_id and not public.is_suspended());
 
+drop policy if exists "reports_select_own" on public.reports;
 create policy "reports_select_own" on public.reports
   for select using (auth.uid() = reporter_id or public.is_admin());
 
+drop policy if exists "reports_update_admin" on public.reports;
 create policy "reports_update_admin" on public.reports
   for update using (public.is_admin());
 
 -- ---- NOTIFICATIONS ----
+drop policy if exists "notifications_own" on public.notifications;
 create policy "notifications_own" on public.notifications
   for all using (auth.uid() = user_id);
 
 -- ---- ADMIN ACTIONS ----
+drop policy if exists "admin_actions_admin_only" on public.admin_actions;
 create policy "admin_actions_admin_only" on public.admin_actions
   for all using (public.is_admin());
 
 -- ---- ACTIVITY LOGS ----
+drop policy if exists "activity_logs_insert_auth" on public.activity_logs;
 create policy "activity_logs_insert_auth" on public.activity_logs
   for insert with check (auth.uid() = user_id and not public.is_suspended());
 
+drop policy if exists "activity_logs_select_own_or_admin" on public.activity_logs;
 create policy "activity_logs_select_own_or_admin" on public.activity_logs
   for select using (auth.uid() = user_id or public.is_admin());
 
--- ============================================================
--- STORAGE BUCKETS
--- Setup via Supabase Dashboard or CLI:
--- 1. Create bucket: "attachments" (private, 10MB limit)
--- 2. Allow authenticated uploads
--- 3. Allow public read for attachment URLs (use signed URLs)
--- ============================================================
+-- ==============================================================================
+-- 8. STORAGE BUCKET CONFIGURATION (Execute in Supabase Storage or SQL)
+-- ==============================================================================
+-- 1. Create bucket: "attachments" (public or authenticated)
+-- 2. Allow authenticated users to upload and manage their own attachments
+insert into storage.buckets (id, name, public)
+values ('attachments', 'attachments', true)
+on conflict (id) do nothing;
 
--- ============================================================
--- TO MAKE YOUR ACCOUNT ADMIN:
--- Run this after signing up with your email:
+drop policy if exists "attachments_public_read" on storage.objects;
+create policy "attachments_public_read" on storage.objects
+  for select using (bucket_id = 'attachments');
+
+drop policy if exists "attachments_auth_upload" on storage.objects;
+create policy "attachments_auth_upload" on storage.objects
+  for insert with check (
+    bucket_id = 'attachments'
+    and auth.uid() is not null
+  );
+
+drop policy if exists "attachments_auth_delete_own" on storage.objects;
+create policy "attachments_auth_delete_own" on storage.objects
+  for delete using (
+    bucket_id = 'attachments'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- ==============================================================================
+-- 9. ADMIN ACCOUNT PROMOTION INSTRUCTIONS
+-- ==============================================================================
+-- After creating your student account, promote it to administrator by executing:
 --
--- update public.profiles
--- set role = 'admin'
--- where email = 'YOUR_EMAIL_HERE';
---
--- ============================================================
+-- UPDATE public.profiles
+-- SET role = 'admin'
+-- WHERE email = 'YOUR_EMAIL@EXAMPLE.COM';
+-- ==============================================================================
