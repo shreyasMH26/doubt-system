@@ -9,10 +9,48 @@ export async function getProfile(userId: string): Promise<Profile | null> {
     .from('profiles')
     .select('*')
     .eq('id', userId)
-    .single();
+    .maybeSingle();
 
-  if (error) return null;
-  return data as Profile;
+  if (data) return data as Profile;
+  if (error && error.code !== 'PGRST116') {
+    console.warn('[DoubtHub] Error fetching profile:', error);
+  }
+
+  // Self-heal: If profile row is missing in public.profiles and this is the authenticated user,
+  // automatically create the profile row from Auth user metadata so the profile immediately exists.
+  try {
+    const { data: authData } = await supabase.auth.getUser();
+    const user = authData?.user;
+    if (user && user.id === userId) {
+      const username =
+        user.user_metadata?.username ||
+        user.email?.split('@')[0] ||
+        `student_${user.id.slice(0, 6)}`;
+      const fullName = user.user_metadata?.full_name || username;
+
+      const { data: created, error: insertErr } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email || '',
+          username,
+          full_name: fullName,
+          branch: user.user_metadata?.branch || null,
+          semester: user.user_metadata?.semester ? Number(user.user_metadata.semester) : null,
+          role: 'student',
+        })
+        .select('*')
+        .maybeSingle();
+
+      if (!insertErr && created) {
+        return created as Profile;
+      }
+    }
+  } catch (healErr) {
+    console.warn('[DoubtHub] Self-heal profile failed:', healErr);
+  }
+
+  return null;
 }
 
 export async function updateProfile(userId: string, updates: Partial<Profile>): Promise<void> {
@@ -83,16 +121,21 @@ export async function signUp(params: {
 
   if (error) throw error;
 
-  // Update profile with extra fields if user created
-  if (data.user) {
-    await supabase.from('profiles').upsert({
-      id: data.user.id,
-      email,
-      full_name,
-      username,
-      branch: branch ?? null,
-      semester: semester ?? null,
-    });
+  // If a session exists immediately, update profile with extra fields.
+  // When email confirmation is enabled, the database trigger on auth.users handles this.
+  if (data.user && data.session) {
+    try {
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        email,
+        full_name,
+        username,
+        branch: branch ?? null,
+        semester: semester ?? null,
+      });
+    } catch {
+      // Ignored: database trigger creates profile on auth.users insert
+    }
   }
 
   return data;

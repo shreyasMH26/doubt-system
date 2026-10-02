@@ -33,42 +33,43 @@ export function ProfilePage() {
     enabled: !!id && tab === 'answers',
   });
 
-  if (isLoading) return <PageLoader />;
-  if (!profile) return (
+  const isOwn = currentUser?.id === id;
+  const activeProfile = profile || (isOwn ? currentUser : null);
+
+  if (isLoading && !activeProfile) return <PageLoader />;
+  if (!activeProfile) return (
     <div className="card p-12 text-center">
       <p className="text-zinc-400">User not found.</p>
     </div>
   );
-
-  const isOwn = currentUser?.id === id;
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       {/* Profile header */}
       <div className="card p-6">
         <div className="flex items-start gap-4">
-          <Avatar src={profile.avatar_url} name={profile.full_name || profile.username} size="xl" />
+          <Avatar src={activeProfile.avatar_url} name={activeProfile.full_name || activeProfile.username} size="xl" />
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{profile.full_name || profile.username}</h1>
-                <p className="text-sm text-zinc-400">@{profile.username}</p>
+                <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{activeProfile.full_name || activeProfile.username}</h1>
+                <p className="text-sm text-zinc-400">@{activeProfile.username}</p>
               </div>
               {isOwn && (
                 <Link to="/settings" className="btn-secondary text-xs">Edit Profile</Link>
               )}
             </div>
 
-            {profile.bio && <p className="text-sm text-zinc-600 dark:text-zinc-300 mt-2">{profile.bio}</p>}
+            {activeProfile.bio && <p className="text-sm text-zinc-600 dark:text-zinc-300 mt-2">{activeProfile.bio}</p>}
 
             <div className="flex flex-wrap gap-3 mt-3 text-xs text-zinc-400">
-              {profile.branch && (
-                <span className="flex items-center gap-1"><GitBranch size={11} /> {profile.branch}</span>
+              {activeProfile.branch && (
+                <span className="flex items-center gap-1"><GitBranch size={11} /> {activeProfile.branch}</span>
               )}
-              {profile.semester && (
-                <span>Sem {profile.semester}</span>
+              {activeProfile.semester && (
+                <span>Sem {activeProfile.semester}</span>
               )}
-              <span className="flex items-center gap-1"><Calendar size={11} /> Joined {formatDate(profile.created_at)}</span>
+              <span className="flex items-center gap-1"><Calendar size={11} /> Joined {formatDate(activeProfile.created_at)}</span>
             </div>
           </div>
         </div>
@@ -76,7 +77,7 @@ export function ProfilePage() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-zinc-100 dark:border-zinc-800">
           {[
-            { icon: Star, label: 'Reputation', value: profile.reputation },
+            { icon: Star, label: 'Reputation', value: activeProfile.reputation },
             { icon: MessageSquare, label: 'Doubts', value: doubts.length },
             { icon: CheckCircle, label: 'Answers', value: answers.length },
           ].map(({ icon: Icon, label, value }) => (

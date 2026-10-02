@@ -260,21 +260,88 @@ create trigger profiles_updated_at
   before update on public.profiles
   for each row execute function public.handle_updated_at();
 
+-- Protect sensitive profile fields on update
+create or replace function public.protect_profile_fields()
+returns trigger as $$
+begin
+  if not public.is_admin() then
+    -- Regular users cannot alter role, reputation, or suspension status
+    new.role := old.role;
+    new.reputation := old.reputation;
+    new.is_suspended := old.is_suspended;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+drop trigger if exists protect_profile_fields_trigger on public.profiles;
+create trigger protect_profile_fields_trigger
+  before update on public.profiles
+  for each row execute function public.protect_profile_fields();
+
+-- Protect sensitive profile fields on insert
+create or replace function public.protect_profile_insert()
+returns trigger as $$
+begin
+  if not public.is_admin() then
+    new.role := coalesce(new.role, 'student');
+    if new.role != 'student' then
+      new.role := 'student';
+    end if;
+    new.reputation := coalesce(new.reputation, 0);
+    new.is_suspended := false;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+drop trigger if exists protect_profile_insert_trigger on public.profiles;
+create trigger protect_profile_insert_trigger
+  before insert on public.profiles
+  for each row execute function public.protect_profile_insert();
+
 -- Auto-create profile on signup
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  v_username text;
+  v_full_name text;
+  v_branch text;
+  v_semester integer;
 begin
-  insert into public.profiles (id, email, username, full_name)
+  v_username := coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1));
+  v_full_name := coalesce(new.raw_user_meta_data->>'full_name', v_username);
+  v_branch := new.raw_user_meta_data->>'branch';
+  
+  begin
+    v_semester := (new.raw_user_meta_data->>'semester')::integer;
+  exception when others then
+    v_semester := null;
+  end;
+
+  -- Ensure username uniqueness by suffixing ID characters if collided
+  if exists (select 1 from public.profiles where username = v_username and id != new.id) then
+    v_username := v_username || '_' || substr(replace(new.id::text, '-', ''), 1, 4);
+  end if;
+
+  insert into public.profiles (id, email, username, full_name, branch, semester)
   values (
     new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1))
+    coalesce(new.email, ''),
+    v_username,
+    v_full_name,
+    v_branch,
+    v_semester
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update set
+    email = excluded.email,
+    full_name = coalesce(nullif(public.profiles.full_name, ''), excluded.full_name),
+    username = coalesce(nullif(public.profiles.username, ''), excluded.username),
+    branch = coalesce(public.profiles.branch, excluded.branch),
+    semester = coalesce(public.profiles.semester, excluded.semester);
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
@@ -397,10 +464,7 @@ create policy "profiles_insert_own" on public.profiles
 drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own" on public.profiles
   for update using (auth.uid() = id)
-  with check (
-    auth.uid() = id
-    and role = (select role from public.profiles where id = auth.uid())
-  );
+  with check (auth.uid() = id);
 
 drop policy if exists "profiles_update_admin" on public.profiles;
 create policy "profiles_update_admin" on public.profiles
@@ -592,7 +656,30 @@ create policy "attachments_auth_delete_own" on storage.objects
   );
 
 -- ==============================================================================
--- 9. ADMIN ACCOUNT PROMOTION INSTRUCTIONS
+-- 9. BACKFILL EXISTING USERS
+-- ==============================================================================
+-- Creates profile rows for any auth.users that were registered before the trigger was created
+insert into public.profiles (id, email, username, full_name, branch, semester)
+select
+  u.id,
+  coalesce(u.email, ''),
+  case
+    when exists (select 1 from public.profiles p where p.username = coalesce(u.raw_user_meta_data->>'username', split_part(u.email, '@', 1)))
+    then coalesce(u.raw_user_meta_data->>'username', split_part(u.email, '@', 1)) || '_' || substr(replace(u.id::text, '-', ''), 1, 4)
+    else coalesce(u.raw_user_meta_data->>'username', split_part(u.email, '@', 1))
+  end as username,
+  coalesce(u.raw_user_meta_data->>'full_name', coalesce(u.raw_user_meta_data->>'username', split_part(u.email, '@', 1))) as full_name,
+  u.raw_user_meta_data->>'branch' as branch,
+  case
+    when (u.raw_user_meta_data->>'semester') ~ '^[0-9]+$' then (u.raw_user_meta_data->>'semester')::integer
+    else null
+  end as semester
+from auth.users u
+where u.id not in (select id from public.profiles)
+on conflict (id) do nothing;
+
+-- ==============================================================================
+-- 10. ADMIN ACCOUNT PROMOTION INSTRUCTIONS
 -- ==============================================================================
 -- After creating your student account, promote it to administrator by executing:
 --

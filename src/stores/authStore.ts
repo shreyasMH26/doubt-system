@@ -82,13 +82,17 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
               email: user.email || '',
               username,
               full_name: fullName,
+              branch: user.user_metadata?.branch || null,
+              semester: user.user_metadata?.semester ? Number(user.user_metadata.semester) : null,
               role: 'student',
             })
             .select('*')
-            .single();
+            .maybeSingle();
 
           if (!upsertErr && inserted) {
             profile = inserted;
+          } else if (upsertErr) {
+            console.warn('[DoubtHub Auth] profile upsert error:', upsertErr);
           }
         } catch (upsertCatch) {
           console.warn('[DoubtHub Auth] profile upsert fallback:', upsertCatch);
