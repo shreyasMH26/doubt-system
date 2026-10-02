@@ -10,6 +10,16 @@ import { supabase } from '../../lib/supabase';
 
 // ---- Public layout (landing, login, signup) ----
 export function PublicLayout() {
+  const { refreshProfile } = useAuthStore();
+
+  useEffect(() => {
+    refreshProfile();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      refreshProfile();
+    });
+    return () => subscription.unsubscribe();
+  }, [refreshProfile]);
+
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950">
       <Outlet />

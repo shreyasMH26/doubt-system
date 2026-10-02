@@ -24,6 +24,21 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+export function getAppUrl(): string {
+  // Check explicit environment variable (e.g. VITE_APP_URL in Render)
+  const envUrl = import.meta.env.VITE_APP_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+
+  // Fallback to window.location.origin in browser environment
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    return window.location.origin;
+  }
+
+  return 'https://doubt-hub-3c0r.onrender.com';
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()

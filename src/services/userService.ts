@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
-import { ALLOWED_ATTACHMENT_TYPES, MAX_FILE_SIZE_BYTES } from '../lib/utils';
+import { ALLOWED_ATTACHMENT_TYPES, MAX_FILE_SIZE_BYTES, getAppUrl } from '../lib/utils';
 
 // ---- PROFILE ----
 
@@ -70,11 +70,14 @@ export async function signUp(params: {
 
   if (existing) throw new Error('Username is already taken.');
 
+  const appUrl = getAppUrl();
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name, username, branch, semester },
+      emailRedirectTo: `${appUrl}/dashboard`,
     },
   });
 
@@ -107,9 +110,9 @@ export async function signOut() {
 }
 
 export async function resetPassword(email: string) {
-  const origin = window.location.origin;
+  const appUrl = getAppUrl();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/reset-password`,
+    redirectTo: `${appUrl}/settings`,
   });
   if (error) throw error;
 }
