@@ -9,7 +9,7 @@ interface AuthStore {
   setProfile: (profile: Profile | null) => void;
   setLoading: (loading: boolean) => void;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<Profile | null>;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
@@ -27,49 +27,100 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   refreshProfile: async () => {
     try {
-      // First check session / user
-      const { data: { user } } = await supabase.auth.getUser();
+      set({ loading: true });
+
+      // First check getUser(), fallback to getSession()
+      let user: any = null;
+      try {
+        const { data } = await supabase.auth.getUser();
+        user = data?.user ?? null;
+      } catch (e) {
+        console.warn('[DoubtHub Auth] getUser error:', e);
+      }
+
       if (!user) {
-        // Fallback to getSession in case tokens are in URL hash during email confirmation
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
-          set({ profile: null, loading: false, initialized: true });
-          return;
+        const { data: sessionData } = await supabase.auth.getSession();
+        user = sessionData?.session?.user ?? null;
+      }
+
+      if (!user) {
+        set({ profile: null, loading: false, initialized: true });
+        return null;
+      }
+
+      // Query profile
+      let profile: Profile | null = null;
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('[DoubtHub Auth] profile query error:', error);
+        } else {
+          profile = data;
+        }
+      } catch (err) {
+        console.warn('[DoubtHub Auth] fetch profile error:', err);
+      }
+
+      // If profile record does not yet exist, create it or build synthetic profile
+      if (!profile) {
+        const username =
+          user.user_metadata?.username ||
+          user.email?.split('@')[0] ||
+          `student_${user.id.slice(0, 6)}`;
+        const fullName = user.user_metadata?.full_name || username;
+
+        try {
+          const { data: inserted, error: upsertErr } = await supabase
+            .from('profiles')
+            .upsert({
+              id: user.id,
+              email: user.email || '',
+              username,
+              full_name: fullName,
+              role: 'student',
+            })
+            .select('*')
+            .single();
+
+          if (!upsertErr && inserted) {
+            profile = inserted;
+          }
+        } catch (upsertCatch) {
+          console.warn('[DoubtHub Auth] profile upsert fallback:', upsertCatch);
+        }
+
+        // Guaranteed synthetic fallback so user is NEVER blocked if profile row is creating
+        if (!profile) {
+          profile = {
+            id: user.id,
+            email: user.email || '',
+            username,
+            full_name: fullName,
+            avatar_url: null,
+            branch: user.user_metadata?.branch || null,
+            semester: user.user_metadata?.semester || null,
+            year: null,
+            bio: null,
+            role: 'student',
+            reputation: 0,
+            is_suspended: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
         }
       }
 
-      const activeUser = user || (await supabase.auth.getSession()).data.session?.user;
-      if (!activeUser) {
-        set({ profile: null, loading: false, initialized: true });
-        return;
-      }
-
-      let { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', activeUser.id)
-        .single();
-
-      // If trigger hasn't finished writing profile yet, create/fetch it
-      if (!profile) {
-        const username = activeUser.user_metadata?.username || activeUser.email?.split('@')[0] || `user_${activeUser.id.slice(0, 6)}`;
-        const fullName = activeUser.user_metadata?.full_name || username;
-        const { data: newProfile } = await supabase
-          .from('profiles')
-          .upsert({
-            id: activeUser.id,
-            email: activeUser.email || '',
-            username,
-            full_name: fullName,
-          })
-          .select('*')
-          .single();
-        profile = newProfile;
-      }
-
-      set({ profile: profile ?? null, loading: false, initialized: true });
-    } catch {
+      set({ profile, loading: false, initialized: true });
+      return profile;
+    } catch (globalErr) {
+      console.error('[DoubtHub Auth] refreshProfile failed:', globalErr);
       set({ profile: null, loading: false, initialized: true });
+      return null;
     }
   },
 }));

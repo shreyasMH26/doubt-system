@@ -8,12 +8,19 @@ import { motion } from 'framer-motion';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { refreshProfile } = useAuthStore();
+  const { profile, refreshProfile } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // If already authenticated, redirect straight to dashboard
+  useState(() => {
+    if (profile) {
+      navigate('/dashboard', { replace: true });
+    }
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,12 +28,29 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      await signIn(email, password);
-      await refreshProfile();
-      navigate('/dashboard');
+      const signInResult = await signIn(email.trim(), password);
+      if (!signInResult?.user) {
+        throw new Error('Authentication succeeded but user identity was not returned.');
+      }
+
+      const activeProfile = await refreshProfile();
+      toast.success('Signed in successfully!');
+
+      if (activeProfile?.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     } catch (err: unknown) {
+      console.error('[DoubtHub] Login error:', err);
       const msg = err instanceof Error ? err.message : 'Login failed';
-      setError(msg.includes('Invalid login') ? 'Invalid email or password.' : msg);
+      if (msg.toLowerCase().includes('invalid login credentials') || msg.toLowerCase().includes('invalid')) {
+        setError('Invalid email or password. Please verify your credentials.');
+      } else if (msg.toLowerCase().includes('email not confirmed')) {
+        setError('Please check your email and confirm your address before logging in.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
